@@ -680,9 +680,124 @@ async def scrape_training_providers():
                         name = await link.inner_text()
                         href = await link.get_attribute('href')
                         
+                        # Extract area and location information from the listing page card
+                        area = "N/A"
+                        location = "N/A"
+                        
+                        try:
+                            # Find the parent container/card of this link
+                            parent_card = await link.evaluate("""
+                                (element) => {
+                                    // Look for the closest parent that contains all the card information
+                                    let parent = element.closest('tr') || 
+                                               element.closest('.card') || 
+                                               element.closest('[class*="item"]') ||
+                                               element.closest('div');
+                                    return parent;
+                                }
+                            """)
+                            
+                            if parent_card:
+                                # Get the parent element handle
+                                parent_handle = await page.evaluate_handle("""
+                                    (link) => {
+                                        return link.closest('tr') || 
+                                               link.closest('.card') || 
+                                               link.closest('[class*="item"]') ||
+                                               link.closest('div');
+                                    }
+                                """, link)
+                                
+                                if parent_handle:
+                                    # Extract all text content from the parent card
+                                    card_text = await parent_handle.inner_text()
+                                    
+                                    # Split into lines and analyze the structure
+                                    lines = [line.strip() for line in card_text.split('\n') if line.strip()]
+                                    
+                                    # Try to identify area and location patterns
+                                    # The area is usually the line right after the provider name
+                                    # Location is usually after a "Location" label
+                                    
+                                    name_index = -1
+                                    for i, line in enumerate(lines):
+                                        if name.strip().lower() in line.lower():
+                                            name_index = i
+                                            break
+                                    
+                                    if name_index >= 0:
+                                        # Area is typically the next line after the name
+                                        if name_index + 1 < len(lines):
+                                            potential_area = lines[name_index + 1]
+                                            # Check if this looks like an area (not "Location" or other headers)
+                                            if not potential_area.lower().startswith('location') and len(potential_area) > 2:
+                                                area = potential_area
+                                    
+                                    # Look for location information
+                                    for i, line in enumerate(lines):
+                                        if line.lower().strip() == 'location' and i + 1 < len(lines):
+                                            location = lines[i + 1]
+                                            break
+                                        elif line.lower().startswith('location:'):
+                                            location = line.replace('location:', '').strip()
+                                            break
+                                        elif 'location' in line.lower() and len(line) > 10:
+                                            # Sometimes location is in the same line
+                                            location = line
+                                            break
+                                    
+                                    # Alternative approach: look for specific selectors within the card
+                                    try:
+                                        # Try to find area using common patterns
+                                        area_selectors = [
+                                            'td:nth-child(2)',  # Second column in table
+                                            '.area',
+                                            '.location-area',
+                                            '[class*="area"]'
+                                        ]
+                                        
+                                        for selector in area_selectors:
+                                            try:
+                                                area_elem = await parent_handle.query_selector(selector)
+                                                if area_elem:
+                                                    area_text = await area_elem.inner_text()
+                                                    if area_text and area_text.strip() and area == "N/A":
+                                                        area = area_text.strip()
+                                                        break
+                                            except:
+                                                continue
+                                        
+                                        # Try to find location using common patterns
+                                        location_selectors = [
+                                            'td:nth-child(3)',  # Third column in table
+                                            '.location',
+                                            '.address',
+                                            '[class*="location"]',
+                                            '[class*="address"]'
+                                        ]
+                                        
+                                        for selector in location_selectors:
+                                            try:
+                                                location_elem = await parent_handle.query_selector(selector)
+                                                if location_elem:
+                                                    location_text = await location_elem.inner_text()
+                                                    if location_text and location_text.strip() and location == "N/A":
+                                                        location = location_text.strip()
+                                                        break
+                                            except:
+                                                continue
+                                                
+                                    except Exception as e:
+                                        print(f"Error in alternative selector approach: {e}")
+                                        
+                        except Exception as e:
+                            print(f"Error extracting area/location for {name}: {e}")
+                        
                         provider_index += 1  # Increment index after getting details
                         
                         print(f"\nProcessing provider {provider_index}/{len(provider_links)}: {name}")
+                        print(f"  Area: {area}")
+                        print(f"  Listing Location: {location}")
                         
                         # Navigate directly to the detail page using the href
                         if href:
@@ -700,7 +815,9 @@ async def scrape_training_providers():
                         
                         # Extract detailed information from the detail page
                         detailed_data = {
-                            'name': name
+                            'name': name,
+                            'area': area,
+                            'listing_location': location
                         }
                         
                         # Extract website
@@ -1208,9 +1325,12 @@ async def scrape_training_providers():
                         detailed_providers.append(detailed_data)
                         
                         print(f"Extracted data for: {name}")
+                        print(f"  Area: {area}")
+                        print(f"  Listing Location: {location}")
                         print(f"  Website: {website}")
                         print(f"  Email: {email}")
                         print(f"  Phone: {phone}")
+                        print(f"  Detail Address: {address}")
                         print(f"  Programs: {detailed_data['programs'][:100]}...")
                         
                         # Save this record immediately to CSV
