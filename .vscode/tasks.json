@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run KHDA Scraper",
+      "type": "shell",
+      "command": "python",
+      "args": ["script.py"],
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}
