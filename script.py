@@ -12,7 +12,6 @@ import msvcrt
 from pathlib import Path
 import traceback
 import sys
-
 # Helper function to click on provider elements
 async def click_on_provider(page, provider_name):
     """
@@ -822,23 +821,141 @@ async def scrape_training_providers():
                         
                         # Extract website
                         website = "N/A"
-                        website_selectors = [
-                            'a[href*="http"]:not([href*="khda.gov.ae"])',  # External links only
-                            'a[target="_blank"]',
-                            'a[href*=".com"]',
-                            'a[href*=".ae"]:not([href*="khda.gov.ae"])'
-                        ]
                         
-                        for selector in website_selectors:
-                            try:
-                                website_elem = await page.query_selector(selector)
-                                if website_elem:
-                                    href_attr = await website_elem.get_attribute('href')
-                                    if href_attr and "http" in href_attr and "khda.gov.ae" not in href_attr:
-                                        website = href_attr
-                                        break
-                            except Exception:
-                                continue
+                        # First try to find website under "VISIT" heading/label
+                        try:
+                            # Look for elements containing "VISIT" and get the associated website
+                            # Try a more direct approach first - look for specific structures
+                            
+                            # Method 1: Look for VISIT text with adjacent website text
+                            visit_element = await page.query_selector('text=VISIT')
+                            if visit_element:
+                                print("Found VISIT text element, looking for nearby website")
+                                
+                                # Get the parent container of the VISIT element
+                                parent = await visit_element.evaluate('element => element.parentElement')
+                                if parent:
+                                    # Look for website text in the same parent or sibling elements
+                                    parent_text = await visit_element.evaluate('element => element.parentElement.textContent')
+                                    if parent_text:
+                                        # Extract website from the text content
+                                        website_patterns = [
+                                            r'(www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+                                            r'([a-zA-Z0-9.-]+\.(com|ae|org|net|edu|gov)[a-zA-Z0-9/.-]*)',
+                                            r'(https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}[a-zA-Z0-9/.-]*)'
+                                        ]
+                                        
+                                        for pattern in website_patterns:
+                                            matches = re.findall(pattern, parent_text)
+                                            if matches:
+                                                found_website = matches[0]
+                                                if isinstance(found_website, tuple):
+                                                    found_website = found_website[0]
+                                                
+                                                # Exclude government navigation links
+                                                if not any(gov_domain in found_website.lower() for gov_domain in ['khda.gov.ae', 'tec.gov.ae', 'moe.gov.ae', 'gov.ae']):
+                                                    # Add http if not present
+                                                    if not found_website.startswith('http'):
+                                                        found_website = f"http://{found_website}"
+                                                    
+                                                    website = found_website
+                                                    print(f"Found website via VISIT parent text: {website}")
+                                                    break
+                            
+                            # Method 2: If Method 1 didn't work, try XPath patterns
+                            if website == "N/A":
+                                visit_patterns = [
+                                    # Look for VISIT text followed by website text in the same container
+                                    '//text()[contains(., "VISIT")]/parent::*//*[contains(text(), "www.") or contains(text(), ".com") or contains(text(), ".ae")]',
+                                    '//text()[contains(., "VISIT")]/following-sibling::text()[contains(., "www.") or contains(., ".com") or contains(., ".ae")]',
+                                    '//text()[contains(., "VISIT")]/parent::*/following-sibling::*/text()[contains(., "www.") or contains(., ".com") or contains(., ".ae")]',
+                                    
+                                    # Look for VISIT as heading with website link in nearby element
+                                    '//text()[contains(., "VISIT")]/following-sibling::*//a[contains(@href, "http")]',
+                                    '//text()[contains(., "VISIT")]/parent::*/following-sibling::*//a[contains(@href, "http")]'
+                                ]
+                                
+                                for pattern in visit_patterns:
+                                    try:
+                                        # Use page.locator with XPath for better handling
+                                        elements = await page.locator(f'xpath={pattern}').all()
+                                        
+                                        for element in elements:
+                                            try:
+                                                if hasattr(element, 'get_attribute'):
+                                                    # If it's a link element, get href
+                                                    href = await element.get_attribute('href')
+                                                    if href and "http" in href:
+                                                        # Exclude government navigation links
+                                                        if not any(gov_domain in href.lower() for gov_domain in ['khda.gov.ae', 'tec.gov.ae', 'moe.gov.ae']):
+                                                            website = href
+                                                            print(f"Found website via VISIT link pattern: {website}")
+                                                            break
+                                                else:
+                                                    # If it's text content, extract the website
+                                                    text_content = await element.inner_text()
+                                                    if text_content:
+                                                        # Look for website patterns in the text
+                                                        website_patterns = [
+                                                            r'(www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+                                                            r'([a-zA-Z0-9.-]+\.(com|ae|org|net|edu|gov)[a-zA-Z0-9/.-]*)',
+                                                            r'(https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}[a-zA-Z0-9/.-]*)'
+                                                        ]
+                                                        
+                                                        for pattern in website_patterns:
+                                                            matches = re.findall(pattern, text_content)
+                                                            if matches:
+                                                                found_website = matches[0]
+                                                                if isinstance(found_website, tuple):
+                                                                    found_website = found_website[0]
+                                                                
+                                                                # Exclude government navigation links
+                                                                if not any(gov_domain in found_website.lower() for gov_domain in ['khda.gov.ae', 'tec.gov.ae', 'moe.gov.ae', 'gov.ae']):
+                                                                    # Add http if not present
+                                                                    if not found_website.startswith('http'):
+                                                                        found_website = f"http://{found_website}"
+                                                                    
+                                                                    website = found_website
+                                                                    print(f"Found website via VISIT text pattern: {website}")
+                                                                    break
+                                            except Exception as e:
+                                                print(f"Error processing VISIT element: {e}")
+                                                continue
+                                        
+                                        if website != "N/A":
+                                            break
+                                            
+                                    except Exception as e:
+                                        print(f"Error with VISIT pattern {pattern}: {e}")
+                                        continue
+                                    
+                        except Exception as e:
+                            print(f"Error in VISIT-specific website extraction: {e}")
+                        
+                        # Fallback to general website selectors if VISIT method didn't work
+                        if website == "N/A":
+                            print("VISIT method didn't find website, trying fallback selectors...")
+                            website_selectors = [
+                                'a[href*="http"]:not([href*="khda.gov.ae"]):not([href*="tec.gov.ae"]):not([href*="moe.gov.ae"])',  # External links only, excluding government sites
+                                'a[target="_blank"]:not([href*="gov.ae"])',  # External links excluding government
+                                'a[href*=".com"]:not([href*="gov.ae"])',
+                                'a[href*=".ae"]:not([href*="khda.gov.ae"]):not([href*="tec.gov.ae"]):not([href*="moe.gov.ae"])'
+                            ]
+                            
+                            for selector in website_selectors:
+                                try:
+                                    website_elem = await page.query_selector(selector)
+                                    if website_elem:
+                                        href_attr = await website_elem.get_attribute('href')
+                                        if href_attr and "http" in href_attr:
+                                            # Additional check to exclude government navigation links
+                                            excluded_domains = ['khda.gov.ae', 'tec.gov.ae', 'moe.gov.ae', 'government.ae']
+                                            if not any(domain in href_attr.lower() for domain in excluded_domains):
+                                                website = href_attr
+                                                print(f"Found website via fallback selector: {website}")
+                                                break
+                                except Exception:
+                                    continue
                         detailed_data['website'] = website
                         
                         # Extract email
