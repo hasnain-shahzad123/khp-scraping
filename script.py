@@ -12,19 +12,6 @@ import msvcrt
 from pathlib import Path
 import traceback
 import sys
-import logging
-from datetime import datetime
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs.txt', mode='a'),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger(__name__)
 # Helper function to click on provider elements
 async def click_on_provider(page, provider_name):
     """
@@ -39,7 +26,7 @@ async def click_on_provider(page, provider_name):
             try:
                 # Check if this element or its parent is clickable
                 await elem.click()
-                logger.info(f"Found and clicked provider: {provider_name}")
+                print(f"Found and clicked provider: {provider_name}")
                 await page.wait_for_load_state("networkidle")
                 return True
             except Exception:
@@ -66,7 +53,7 @@ async def click_on_provider(page, provider_name):
                 text = await item.inner_text()
                 if provider_name.lower() in text.lower():
                     await item.click()
-                    logger.info(f"Found and clicked container for: {provider_name}")
+                    print(f"Found and clicked container for: {provider_name}")
                     await page.wait_for_load_state("networkidle")
                     return True
             except Exception:
@@ -83,7 +70,7 @@ async def click_on_provider(page, provider_name):
                 # Check if we're on a details page
                 page_text = await page.text_content('body')
                 if provider_name.lower() in page_text.lower():
-                    logger.info(f"Found provider details page via details link: {provider_name}")
+                    print(f"Found provider details page via details link: {provider_name}")
                     return True
                 # If not on the right page, go back
                 await page.goto(page.url)
@@ -98,7 +85,7 @@ async def click_and_extract_subprograms(page, element, main_title):
     Clicks on a program header element and extracts any subprograms that appear.
     Returns a list of subprogram names.
     """
-    logger.info(f"Attempting to extract subprograms for: {main_title}")
+    print(f"Attempting to extract subprograms for: {main_title}")
     subprograms = []
     
     # Define a comprehensive list of navigation elements to filter out
@@ -161,7 +148,7 @@ async def click_and_extract_subprograms(page, element, main_title):
             await page.evaluate('(element) => element.click()', element)
             await page.wait_for_timeout(1000)
         except Exception as js_err:
-            logger.error(f"Both standard and JavaScript clicks failed: {js_err}")
+            print(f"Both standard and JavaScript clicks failed: {js_err}")
     
     # Check if element has href or data-bs-target (typical for Bootstrap accordions)
     target_id = None
@@ -179,7 +166,7 @@ async def click_and_extract_subprograms(page, element, main_title):
     # If we have a target ID, directly check that element
     if target_id:
         try:
-            logger.info(f"Found target container with ID: {target_id}")
+            print(f"Found target container with ID: {target_id}")
             target_elem = await page.query_selector(f'#{target_id}')
             if target_elem:
                 # Make sure it's visible
@@ -208,12 +195,12 @@ async def click_and_extract_subprograms(page, element, main_title):
                 """, target_id)
                 
                 if items and len(items) > 0:
-                    logger.info(f"Found {len(items)} items in target container")
+                    print(f"Found {len(items)} items in target container")
                     for item in items:
                         if item and item not in subprograms:
                             subprograms.append(item)
         except Exception as e:
-            logger.error(f"Error processing target element: {e}")
+            print(f"Error processing target element: {e}")
     
     # If we didn't find subprograms via target ID, check for new elements after click
     if not subprograms:
@@ -278,7 +265,7 @@ async def click_and_extract_subprograms(page, element, main_title):
                     container = after_content[0]  # Otherwise take the first container
                 
                 # Add items to subprograms
-                logger.info(f"Found {len(container['items'])} items in a {container['type']} after clicking")
+                print(f"Found {len(container['items'])} items in a {container['type']} after clicking")
                 for item in container['items']:
                     # Skip items that are navigation elements or just the main title repeated
                     if item and item != main_title and item not in subprograms:
@@ -310,7 +297,7 @@ async def click_and_extract_subprograms(page, element, main_title):
                 paragraphs = [item['text'] for item in after_elements if item['isParagraph']]
                 
                 if list_items:
-                    logger.info(f"Found {len(list_items)} list items after clicking")
+                    print(f"Found {len(list_items)} list items after clicking")
                     for text in list_items:
                         if text != main_title and text not in subprograms:
                             clean_text = text.split('\n')[0].strip()
@@ -321,7 +308,7 @@ async def click_and_extract_subprograms(page, element, main_title):
                                 if not (main_words.issubset(item_words) or item_words.issubset(main_words)):
                                     subprograms.append(clean_text)
                 elif paragraphs:
-                    logger.info(f"Found {len(paragraphs)} paragraphs after clicking")
+                    print(f"Found {len(paragraphs)} paragraphs after clicking")
                     for text in paragraphs:
                         if text != main_title and text not in subprograms:
                             clean_text = text.split('\n')[0].strip()
@@ -332,7 +319,7 @@ async def click_and_extract_subprograms(page, element, main_title):
                                 if not (main_words.issubset(item_words) or item_words.issubset(main_words)):
                                     subprograms.append(clean_text)
         except Exception as e:
-            logger.error(f"Error analyzing content after clicking: {e}")
+            print(f"Error analyzing content after clicking: {e}")
     
     # If we still didn't find anything, look for list items or divs near the clicked element
     if not subprograms:
@@ -374,7 +361,7 @@ async def click_and_extract_subprograms(page, element, main_title):
             """, element)
             
             if items:
-                logger.info(f"Found {len(items)} potential subprograms in nearby elements")
+                print(f"Found {len(items)} potential subprograms in nearby elements")
                 for item in items:
                     if item != main_title and item not in subprograms:
                         clean_item = item.split('\n')[0].strip()
@@ -385,7 +372,7 @@ async def click_and_extract_subprograms(page, element, main_title):
                             if not (main_words.issubset(item_words) or item_words.issubset(main_words)):
                                 subprograms.append(clean_item)
         except Exception as e:
-            logger.error(f"Error finding nearby list items: {e}")
+            print(f"Error finding nearby list items: {e}")
     
     # Return the list of subprograms we found
     return subprograms
@@ -398,7 +385,7 @@ async def click_and_expand_accordion(page, text):
     # Wait for page to be completely loaded
     await page.wait_for_load_state("networkidle")
     
-    logger.info(f"Looking for accordion with text: '{text}'")
+    print(f"Looking for accordion with text: '{text}'")
     
     # Find accordion trigger with more robust selectors
     selectors = [
@@ -427,13 +414,13 @@ async def click_and_expand_accordion(page, text):
             # Use a timeout to avoid hanging if element doesn't exist
             element = await page.wait_for_selector(selector, timeout=3000, state='attached')
             if element:
-                logger.info(f"Found accordion trigger with selector: {selector}")
+                print(f"Found accordion trigger with selector: {selector}")
                 break
         except Exception:
             continue
     
     if not element:
-        logger.warning(f"Could not find accordion trigger for '{text}'")
+        print(f"Could not find accordion trigger for '{text}'")
         return None
     
     try:
@@ -442,7 +429,7 @@ async def click_and_expand_accordion(page, text):
         
         # If not expanded, click to expand it
         if aria_expanded != 'true':
-            logger.info("Clicking accordion trigger")
+            print("Clicking accordion trigger")
             # First try the standard click method
             try:
                 await element.click()
@@ -455,12 +442,12 @@ async def click_and_expand_accordion(page, text):
         
         # Get target content ID from href or data-bs-target attribute
         target = await element.get_attribute('href') or await element.get_attribute('data-bs-target')
-        logger.debug(f"Accordion target attribute: {target}")
+        print(f"Accordion target attribute: {target}")
         
         if target and target.startswith('#'):
             content_id = target[1:]
             try:
-                logger.info(f"Looking for accordion content with ID: {content_id}")
+                print(f"Looking for accordion content with ID: {content_id}")
                 # Wait for the content to be attached to the DOM
                 content = await page.wait_for_selector(f'#{content_id}, div[id="{content_id}"]', 
                                                       state='attached', 
@@ -468,11 +455,11 @@ async def click_and_expand_accordion(page, text):
                 if content:
                     # Check if content is visible
                     is_visible = await content.is_visible()
-                    logger.debug(f"Accordion content visibility: {is_visible}")
+                    print(f"Accordion content visibility: {is_visible}")
                     
                     if not is_visible:
                         # Try to make it visible using JavaScript
-                        logger.info("Content not visible, trying to make it visible with JavaScript")
+                        print("Content not visible, trying to make it visible with JavaScript")
                         await page.evaluate(f"""
                             (id) => {{
                                 const elem = document.getElementById(id);
@@ -487,7 +474,7 @@ async def click_and_expand_accordion(page, text):
                     
                     return content
             except Exception as e:
-                logger.error(f"Error finding content with ID {content_id}: {e}")
+                print(f"Error finding content with ID {content_id}: {e}")
         
         # If we couldn't find by ID, try using JavaScript to find the accordion content
         # This is more robust than using ElementHandles
@@ -545,7 +532,7 @@ async def click_and_expand_accordion(page, text):
                     continue
         
     except Exception as e:
-        logger.error(f"Error expanding accordion '{text}': {e}")
+        print(f"Error expanding accordion '{text}': {e}")
     
     # As a last resort, try to find any visible element that might contain the programs
     try:
@@ -584,7 +571,7 @@ async def scrape_training_providers():
     
     url = "https://web.khda.gov.ae/en/Education-Directory/Training"
     
-    logger.info("Starting browser...")
+    print("Starting browser...")
     browser = None  # Define browser here so it's accessible in finally block
     try:
         async with async_playwright() as p:
@@ -609,17 +596,17 @@ async def scrape_training_providers():
             page.set_default_timeout(60000)  # 60 seconds
             
             # Navigate to the directory page with retry logic
-            logger.info(f"Navigating to {url}...")
+            print(f"Navigating to {url}...")
             max_retries = 3
             for attempt in range(max_retries):
                 try:
                     await page.goto(url, timeout=60000)
-                    logger.info("Waiting for page load...")
+                    print("Waiting for page load...")
                     await page.wait_for_load_state("domcontentloaded", timeout=60000)
                     await page.wait_for_load_state("networkidle", timeout=60000)
                     
                     # Wait for any content to appear - updated selectors based on the current website structure
-                    logger.info("Waiting for content to load...")
+                    print("Waiting for content to load...")
                     # More comprehensive selectors to find cards, headings, and content items
                     await page.wait_for_selector('table, .directory-item, tr[role="row"], .card, .item, [class*="list-item"], h2, h3, h4, a[href*="details"], div[class*="card"], div[class*="item"]', timeout=60000)
                     
@@ -640,7 +627,7 @@ async def scrape_training_providers():
                             element = await page.query_selector(selector)
                             if element:
                                 total_items_text = await element.text_content()
-                                logger.info(f"Found pagination info: {total_items_text}")
+                                print(f"Found pagination info: {total_items_text}")
                                 break
                         except Exception:
                             continue
@@ -653,35 +640,35 @@ async def scrape_training_providers():
                             items = await page.query_selector_all('tr[role="row"], .directory-item, .card, .item, [class*="list-item"], div[class*="card"], div[class*="item"]')
                             if items:
                                 total_items_text = f"1 - {len(items)} of {len(items)} items"
-                                logger.info(f"Estimated pagination info: {total_items_text}")
+                                print(f"Estimated pagination info: {total_items_text}")
                                 break
                         except Exception:
                             pass
                         
-                        logger.warning("Could not find pagination info, will continue anyway")
+                        print("Could not find pagination info, will continue anyway")
                         total_items_text = "unknown number of items"
                         break
                         
                 except Exception as e:
                     if attempt == max_retries - 1:
                         raise Exception(f"Failed to load page after {max_retries} attempts: {str(e)}")
-                    logger.warning(f"Attempt {attempt + 1} failed, retrying in 5 seconds...")
+                    print(f"Attempt {attempt + 1} failed, retrying in 5 seconds...")
                     await asyncio.sleep(5)
             
             # Skip screenshots as we only need CSV data
             
             total_items_match = re.search(r'of (\d+) items', total_items_text)
             total_items = int(total_items_match.group(1)) if total_items_match else 0
-            logger.info(f"Found {total_items} training providers")
+            print(f"Found {total_items} training providers")
             
             # Process providers one by one
             page_num = 1
             while True:
-                logger.info(f"Processing page {page_num}")
+                print(f"Processing page {page_num}")
                 
                 # Find all the provider name links directly and get their info immediately
                 provider_links = await page.query_selector_all('a[id="lnkName"]')
-                logger.info(f"Found {len(provider_links)} provider links on page {page_num}")
+                print(f"Found {len(provider_links)} provider links on page {page_num}")
                 
                 # Process each provider link directly
                 # Use numeric index to keep track of where we are
@@ -800,16 +787,16 @@ async def scrape_training_providers():
                                                 continue
                                                 
                                     except Exception as e:
-                                        logger.error(f"Error in alternative selector approach: {e}")
+                                        print(f"Error in alternative selector approach: {e}")
                                         
                         except Exception as e:
-                            logger.error(f"Error extracting area/location for {name}: {e}")
+                            print(f"Error extracting area/location for {name}: {e}")
                         
                         provider_index += 1  # Increment index after getting details
                         
-                        logger.info(f"\nProcessing provider {provider_index}/{len(provider_links)}: {name}")
-                        logger.info(f"  Area: {area}")
-                        logger.info(f"  Listing Location: {location}")
+                        print(f"\nProcessing provider {provider_index}/{len(provider_links)}: {name}")
+                        print(f"  Area: {area}")
+                        print(f"  Listing Location: {location}")
                         
                         # Navigate directly to the detail page using the href
                         if href:
@@ -822,7 +809,7 @@ async def scrape_training_providers():
                             await page.wait_for_load_state("networkidle")
                             await asyncio.sleep(2)
                         else:
-                            logger.warning(f"No href found for {name}, skipping")
+                            print(f"No href found for {name}, skipping")
                             continue
                         
                         # Extract detailed information from the detail page
@@ -843,7 +830,7 @@ async def scrape_training_providers():
                             # Method 1: Look for VISIT text with adjacent website text
                             visit_element = await page.query_selector('text=VISIT')
                             if visit_element:
-                                logger.info("Found VISIT text element, looking for nearby website")
+                                print("Found VISIT text element, looking for nearby website")
                                 
                                 # Get the parent container of the VISIT element
                                 parent = await visit_element.evaluate('element => element.parentElement')
@@ -872,7 +859,7 @@ async def scrape_training_providers():
                                                         found_website = f"http://{found_website}"
                                                     
                                                     website = found_website
-                                                    logger.info(f"Found website via VISIT parent text: {website}")
+                                                    print(f"Found website via VISIT parent text: {website}")
                                                     break
                             
                             # Method 2: If Method 1 didn't work, try XPath patterns
@@ -902,7 +889,7 @@ async def scrape_training_providers():
                                                         # Exclude government navigation links
                                                         if not any(gov_domain in href.lower() for gov_domain in ['khda.gov.ae', 'tec.gov.ae', 'moe.gov.ae']):
                                                             website = href
-                                                            logger.info(f"Found website via VISIT link pattern: {website}")
+                                                            print(f"Found website via VISIT link pattern: {website}")
                                                             break
                                                 else:
                                                     # If it's text content, extract the website
@@ -929,25 +916,25 @@ async def scrape_training_providers():
                                                                         found_website = f"http://{found_website}"
                                                                     
                                                                     website = found_website
-                                                                    logger.info(f"Found website via VISIT text pattern: {website}")
+                                                                    print(f"Found website via VISIT text pattern: {website}")
                                                                     break
                                             except Exception as e:
-                                                logger.error(f"Error processing VISIT element: {e}")
+                                                print(f"Error processing VISIT element: {e}")
                                                 continue
                                         
                                         if website != "N/A":
                                             break
                                             
                                     except Exception as e:
-                                        logger.error(f"Error with VISIT pattern {pattern}: {e}")
+                                        print(f"Error with VISIT pattern {pattern}: {e}")
                                         continue
                                     
                         except Exception as e:
-                            logger.error(f"Error in VISIT-specific website extraction: {e}")
+                            print(f"Error in VISIT-specific website extraction: {e}")
                         
                         # Fallback to general website selectors if VISIT method didn't work
                         if website == "N/A":
-                            logger.info("VISIT method didn't find website, trying fallback selectors...")
+                            print("VISIT method didn't find website, trying fallback selectors...")
                             website_selectors = [
                                 'a[href*="http"]:not([href*="khda.gov.ae"]):not([href*="tec.gov.ae"]):not([href*="moe.gov.ae"])',  # External links only, excluding government sites
                                 'a[target="_blank"]:not([href*="gov.ae"])',  # External links excluding government
@@ -965,7 +952,7 @@ async def scrape_training_providers():
                                             excluded_domains = ['khda.gov.ae', 'tec.gov.ae', 'moe.gov.ae', 'government.ae']
                                             if not any(domain in href_attr.lower() for domain in excluded_domains):
                                                 website = href_attr
-                                                logger.info(f"Found website via fallback selector: {website}")
+                                                print(f"Found website via fallback selector: {website}")
                                                 break
                                 except Exception:
                                     continue
@@ -1060,7 +1047,7 @@ async def scrape_training_providers():
                         program_structure = {}  # Dictionary to store main programs and their sub-programs
                         flat_programs = []  # For backward compatibility
                         
-                        logger.info("Looking for Programs Offered accordion...")
+                        print("Looking for Programs Offered accordion...")
                         
                         # Make sure the page is stable before interacting with accordions
                         await page.wait_for_load_state("networkidle")
@@ -1070,11 +1057,11 @@ async def scrape_training_providers():
                         try:
                             accordion_content = await click_and_expand_accordion(page, "Programs Offered")
                         except Exception as e:
-                            logger.error(f"Error accessing Programs Offered accordion: {e}")
+                            print(f"Error accessing Programs Offered accordion: {e}")
                             accordion_content = None
                         
                         if accordion_content:
-                            logger.info("Found and expanded Programs Offered accordion")
+                            print("Found and expanded Programs Offered accordion")
                             
                             # First, try to identify main program headings
                             main_program_selectors = [
@@ -1090,7 +1077,7 @@ async def scrape_training_providers():
                             main_programs = []
                             for selector in main_program_selectors:
                                 try:
-                                    logger.debug(f"Searching for main programs with selector: {selector}")
+                                    print(f"Searching for main programs with selector: {selector}")
                                     elements = await accordion_content.query_selector_all(selector)
                                     if elements and len(elements) > 0:
                                         for element in elements:
@@ -1107,17 +1094,17 @@ async def scrape_training_providers():
                                                     })
                                         
                                         if main_programs:
-                                            logger.info(f"Found {len(main_programs)} potential main programs using selector: {selector}")
+                                            print(f"Found {len(main_programs)} potential main programs using selector: {selector}")
                                             
                                             # If we found a good number of programs, stop looking
                                             if len(main_programs) > 1:
                                                 break
                                 except Exception as e:
-                                    logger.error(f"Error with selector '{selector}': {e}")
+                                    print(f"Error with selector '{selector}': {e}")
                             
                             # If we couldn't find any main programs, try looking for any clickable elements
                             if not main_programs:
-                                logger.info("No main programs found with standard selectors, trying alternative approach")
+                                print("No main programs found with standard selectors, trying alternative approach")
                                 try:
                                     # Look for any clickable elements that might be program headers
                                     clickable_elements = await page.evaluate("""
@@ -1160,7 +1147,7 @@ async def scrape_training_providers():
                                     """)
                                     
                                     if clickable_elements:
-                                        logger.info(f"Found {len(clickable_elements)} potential clickable program headers")
+                                        print(f"Found {len(clickable_elements)} potential clickable program headers")
                                         
                                         # Try to get handles to these elements
                                         for item in clickable_elements:
@@ -1198,9 +1185,9 @@ async def scrape_training_providers():
                                                             except:
                                                                 pass
                                             except Exception as e:
-                                                logger.error(f"Error processing clickable element: {e}")
+                                                print(f"Error processing clickable element: {e}")
                                 except Exception as e:
-                                    logger.error(f"Error in alternative approach: {e}")
+                                    print(f"Error in alternative approach: {e}")
                         
                             # If we found main programs, try to extract their sub-programs
                             if main_programs:
@@ -1209,7 +1196,7 @@ async def scrape_training_providers():
                                         main_title = main_program['title']
                                         elem = main_program['element']
                                         
-                                        logger.info(f"Processing main program: {main_title}")
+                                        print(f"Processing main program: {main_title}")
                                         
                                         # Use our specialized helper function to click and extract subprograms
                                         sub_programs = await click_and_extract_subprograms(page, elem, main_title)                                            # Clean up subprograms - remove duplicates, filter out noise
@@ -1292,7 +1279,7 @@ async def scrape_training_providers():
                                                     clean_subs.append(clean_sub)
                                                 
                                             program_structure[main_title] = clean_subs
-                                            logger.info(f"  Found {len(clean_subs)} sub-programs for {main_title}")
+                                            print(f"  Found {len(clean_subs)} sub-programs for {main_title}")
                                             
                                             # Also add to flat list for backward compatibility
                                             for sub in clean_subs:
@@ -1301,14 +1288,14 @@ async def scrape_training_providers():
                                             # If no sub-programs found, treat the main program as a standalone program
                                             program_structure[main_title] = []
                                             flat_programs.append(main_title)
-                                            logger.warning(f"  No sub-programs found for {main_title}")
+                                            print(f"  No sub-programs found for {main_title}")
                                     except Exception as e:
-                                        logger.error(f"Error processing main program {main_title}: {e}")
+                                        print(f"Error processing main program {main_title}: {e}")
                             
 
                             # If no main programs were found, fall back to the original approach
                             if not program_structure:
-                                logger.info("No main programs found, using original extraction approach")
+                                print("No main programs found, using original extraction approach")
                                 
                                 # Try to parse content text to identify potential main programs and sub-programs
                                 try:
@@ -1351,7 +1338,7 @@ async def scrape_training_providers():
                                         
                                         # If we identified structure, create the flat_programs list
                                         if program_structure:
-                                            logger.info(f"Identified {len(program_structure)} main programs from text patterns")
+                                            print(f"Identified {len(program_structure)} main programs from text patterns")
                                             for main, subs in program_structure.items():
                                                 if subs:
                                                     for sub in subs:
@@ -1359,11 +1346,11 @@ async def scrape_training_providers():
                                                 else:
                                                     flat_programs.append(main)
                                 except Exception as e:
-                                    logger.error(f"Error trying to parse structure from text: {e}")
+                                    print(f"Error trying to parse structure from text: {e}")
                                     
                                 # If we still don't have structure, fall back to the original flat approach
                                 if not flat_programs:
-                                    logger.info("Falling back to basic extraction approach")
+                                    print("Falling back to basic extraction approach")
                                     # Try different selectors to extract program information
                                     for selector in [
                                         'li',  # List items inside the accordion
@@ -1383,10 +1370,10 @@ async def scrape_training_providers():
                                                         flat_programs.append(prog_text.strip())
                                                 
                                                 if flat_programs:
-                                                    logger.info(f"Found {len(flat_programs)} programs using selector: {selector}")
+                                                    print(f"Found {len(flat_programs)} programs using selector: {selector}")
                                                     break
                                         except Exception as e:
-                                            logger.error(f"Error extracting programs with selector {selector}: {e}")
+                                            print(f"Error extracting programs with selector {selector}: {e}")
                         
                         # Skipping all screenshot operations as we only need CSV data
                         
@@ -1454,14 +1441,14 @@ async def scrape_training_providers():
                         all_providers.append(detailed_data)
                         detailed_providers.append(detailed_data)
                         
-                        logger.info(f"Extracted data for: {name}")
-                        logger.info(f"  Area: {area}")
-                        logger.info(f"  Listing Location: {location}")
-                        logger.info(f"  Website: {website}")
-                        logger.info(f"  Email: {email}")
-                        logger.info(f"  Phone: {phone}")
-                        logger.info(f"  Detail Address: {address}")
-                        logger.info(f"  Programs: {detailed_data['programs'][:100]}...")
+                        print(f"Extracted data for: {name}")
+                        print(f"  Area: {area}")
+                        print(f"  Listing Location: {location}")
+                        print(f"  Website: {website}")
+                        print(f"  Email: {email}")
+                        print(f"  Phone: {phone}")
+                        print(f"  Detail Address: {address}")
+                        print(f"  Programs: {detailed_data['programs'][:100]}...")
                         
                         # Save this record immediately to CSV
                         try:
@@ -1531,7 +1518,7 @@ async def scrape_training_providers():
                                     if not file_exists:
                                         # For new file, write directly with headers
                                         df.to_csv(csv_path, index=False, encoding='utf-8', lineterminator='\n')
-                                        logger.info(f"Created new CSV file: {csv_path}")
+                                        print(f"Created new CSV file: {csv_path}")
                                         saved = True
                                     else:
                                         # For existing file, try to update properly
@@ -1541,12 +1528,12 @@ async def scrape_training_providers():
                                             try:
                                                 existing_df = pd.read_csv(csv_path)
                                             except Exception as read_err:
-                                                logger.warning(f"Warning: Could not read existing CSV: {read_err}")
+                                                print(f"Warning: Could not read existing CSV: {read_err}")
                                                 
                                             if existing_df is not None and not existing_df.empty and 'name' in existing_df.columns:
                                                 # Check if this provider already exists
                                                 if save_data['name'] in existing_df['name'].values:
-                                                    logger.info(f"Provider {save_data['name']} already exists in CSV, updating...")
+                                                    print(f"Provider {save_data['name']} already exists in CSV, updating...")
                                                     # Update the existing record
                                                     existing_df.loc[existing_df['name'] == save_data['name']] = df.iloc[0]
                                                     existing_df.to_csv(temp_csv_path, index=False, encoding='utf-8', lineterminator='\n')
@@ -1564,40 +1551,40 @@ async def scrape_training_providers():
                                                             os.remove(csv_path)
                                                         shutil.move(temp_csv_path, csv_path)
                                                         saved = True
-                                                        logger.info(f"Successfully updated CSV file: {csv_path}")
+                                                        print(f"Successfully updated CSV file: {csv_path}")
                                                     except Exception as move_err:
-                                                        logger.error(f"Error moving temp file: {move_err}")
+                                                        print(f"Error moving temp file: {move_err}")
                                             else:
                                                 # If we couldn't read or process the existing file, 
                                                 # use a provider-specific file as a fallback
                                                 provider_csv = f'results/provider_{save_data["name"].replace(" ", "_").replace("/", "_")}.csv'
                                                 df.to_csv(provider_csv, index=False, encoding='utf-8', lineterminator='\n')
-                                                logger.info(f"Created provider-specific CSV: {provider_csv}")
+                                                print(f"Created provider-specific CSV: {provider_csv}")
                                                 saved = True
                                         except Exception as process_err:
-                                            logger.error(f"Error processing CSV data: {process_err}")
+                                            print(f"Error processing CSV data: {process_err}")
                                             retry_count += 1
                                 except PermissionError as e:
-                                    logger.warning(f"Permission error (attempt {retry_count+1}/{max_retries}): {e}")
+                                    print(f"Permission error (attempt {retry_count+1}/{max_retries}): {e}")
                                     retry_count += 1
                                     time.sleep(1)  # Wait before retry
                                 except Exception as e:
-                                    logger.error(f"Unexpected error saving CSV: {e}")
+                                    print(f"Unexpected error saving CSV: {e}")
                                     retry_count += 1
                                     time.sleep(1)  # Wait before retry
                         except Exception as e:
-                            logger.error(f"Error saving to CSV: {str(e)}")
+                            print(f"Error saving to CSV: {str(e)}")
                             # Try an alternative approach for saving if the primary method fails
                             try:
-                                logger.info("Attempting alternative save method...")
+                                print("Attempting alternative save method...")
                                 
                                 # Make sure results directory exists
                                 if not os.path.exists('results'):
                                     try:
                                         os.makedirs('results', exist_ok=True)
-                                        logger.info("Created results directory")
+                                        print("Created results directory")
                                     except Exception as mkdir_err:
-                                        logger.error(f"Error creating results directory: {mkdir_err}")
+                                        print(f"Error creating results directory: {mkdir_err}")
                                         # Try to use the current directory instead
                                         results_dir = '.'
                                 
@@ -1610,9 +1597,9 @@ async def scrape_training_providers():
                                     with open(backup_path, 'w') as test_file:
                                         pass
                                     os.remove(backup_path)
-                                    logger.info("Directory is writable")
+                                    print("Directory is writable")
                                 except Exception as perm_err:
-                                    logger.warning(f"Warning: Directory may not be writable: {perm_err}")
+                                    print(f"Warning: Directory may not be writable: {perm_err}")
                                     backup_path = f'provider_{safe_filename}.txt'  # Try in current directory
                                 
                                 # Save to text file
@@ -1628,26 +1615,26 @@ async def scrape_training_providers():
                                     f.write(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
                                     f.write(f"Error encountered: {str(e)}\n")
                                     
-                                logger.info(f"Saved minimal data as text file to {backup_path}")
+                                print(f"Saved minimal data as text file to {backup_path}")
                                 
                                 # Try a separate CSV file just for this provider
                                 try:
                                     provider_csv = f'results/single_provider_{safe_filename}.csv'
                                     df = pd.DataFrame([detailed_data])
                                     df.to_csv(provider_csv, index=False, encoding='utf-8', lineterminator='\n')
-                                    logger.info(f"Also saved as individual CSV: {provider_csv}")
+                                    print(f"Also saved as individual CSV: {provider_csv}")
                                 except Exception as csv_err:
-                                    logger.error(f"Could not save individual CSV: {csv_err}")
+                                    print(f"Could not save individual CSV: {csv_err}")
                                     
                             except Exception as backup_err:
-                                logger.error(f"Backup save method also failed: {backup_err}")
+                                print(f"Backup save method also failed: {backup_err}")
                                 # Last resort - print the data to console
-                                logger.error("\nProvider data that could not be saved:")
+                                print("\nProvider data that could not be saved:")
                                 for key, value in detailed_data.items():
-                                    logger.error(f"  {key}: {value}")
+                                    print(f"  {key}: {value}")
                         
                         # Go back to the main listing by creating a completely new page
-                        logger.info("Going back to main listing...")
+                        print("Going back to main listing...")
                         try:
                             # Close the current page and create a new one to avoid context issues
                             await page.close()
@@ -1663,7 +1650,7 @@ async def scrape_training_providers():
                             
                             # If we're not on page 1, navigate to the correct page
                             if page_num > 1:
-                                logger.info(f"Navigating back to page {page_num}...")
+                                print(f"Navigating back to page {page_num}...")
                                 # Navigate to the correct page number
                                 for p in range(1, page_num):
                                     await asyncio.sleep(1)  # Wait a bit between clicks
@@ -1695,15 +1682,15 @@ async def scrape_training_providers():
                                             continue
                                     
                                     if not next_clicked:
-                                        logger.warning(f"Could not navigate to page {p+1}, staying on current page")
+                                        print(f"Could not navigate to page {p+1}, staying on current page")
                                         break
                             
                             # Once back on the correct page, refresh provider links
                             provider_links = await page.query_selector_all('a[id="lnkName"]')
-                            logger.info(f"Found {len(provider_links)} provider links after navigation")
+                            print(f"Found {len(provider_links)} provider links after navigation")
                             
                         except Exception as e:
-                            logger.error(f"Error navigating back to main listing page: {e}")
+                            print(f"Error navigating back to main listing page: {e}")
                             # Try a simple navigation as a fallback with a new page
                             try:
                                 await page.close()
@@ -1716,12 +1703,12 @@ async def scrape_training_providers():
                                 # Refresh provider links
                                 provider_links = await page.query_selector_all('a[id="lnkName"]')
                             except Exception as nav_error:
-                                logger.error(f"Critical navigation error: {nav_error}")
+                                print(f"Critical navigation error: {nav_error}")
                                 # If we can't navigate back, we should break out of the loop
                                 raise
                         
                     except Exception as e:
-                        logger.error(f"Error processing provider {name}: {str(e)}")
+                        print(f"Error processing provider {name}: {str(e)}")
                         # No need to decrement provider_index as we've already incremented it
                         # and want to move on to the next provider
                         
@@ -1758,13 +1745,13 @@ async def scrape_training_providers():
                             
                             # Refresh provider links
                             provider_links = await page.query_selector_all('a[id="lnkName"]')
-                            logger.info(f"Found {len(provider_links)} provider links after error recovery")
+                            print(f"Found {len(provider_links)} provider links after error recovery")
                             
                             # Adjust provider_index if necessary to avoid skipping or double-processing
                             if provider_index > len(provider_links):
                                 provider_index = len(provider_links)
                         except Exception as page_e:
-                            logger.error(f"FATAL: Could not navigate back to main page: {page_e}. Aborting.")
+                            print(f"FATAL: Could not navigate back to main page: {page_e}. Aborting.")
                             break
                         continue
                 # After processing all providers on the current page, check for next page
@@ -1803,7 +1790,7 @@ async def scrape_training_providers():
                             continue
                     
                     if has_next_page:
-                        logger.info(f"Moving to page {page_num + 1}")
+                        print(f"Moving to page {page_num + 1}")
                         # Use JavaScript for the click to avoid ElementHandle issues
                         await page.evaluate("(btn) => btn.click()", next_button)
                         await page.wait_for_load_state("networkidle")
@@ -1812,14 +1799,14 @@ async def scrape_training_providers():
                         
                         # Refresh provider links for the new page
                         provider_links = await page.query_selector_all('a[id="lnkName"]')
-                        logger.info(f"Found {len(provider_links)} provider links on page {page_num}")
+                        print(f"Found {len(provider_links)} provider links on page {page_num}")
                         
                         # Reset provider index for the new page
                         provider_index = 0
                     else:
-                        logger.info("No more pages to process or no next button found")
+                        print("No more pages to process or no next button found")
                         break
-            logger.info(f"Scraping completed. Collected data for {len(all_providers)} providers")
+            print(f"Scraping completed. Collected data for {len(all_providers)} providers")
             
             # Save the data to CSV files
             # Remove 'location' from all_providers and detailed_providers before saving
@@ -1848,15 +1835,15 @@ async def scrape_training_providers():
                     except:
                         pass
                 shutil.move(temp_basic_file, final_basic_file)
-                logger.info(f"Basic data saved to '{final_basic_file}'")
+                print(f"Basic data saved to '{final_basic_file}'")
             except Exception as basic_err:
-                logger.error(f"Error saving basic data: {basic_err}")
+                print(f"Error saving basic data: {basic_err}")
                 # Try alternative location
                 try:
                     basic_df.to_csv('khda_training_providers_basic.csv', index=False, lineterminator='\n')
-                    logger.info("Basic data saved to current directory")
+                    print("Basic data saved to current directory")
                 except:
-                    logger.error("Could not save basic data")
+                    print("Could not save basic data")
 
             if detailed_providers:
                 try:
@@ -1889,30 +1876,30 @@ async def scrape_training_providers():
                         except:
                             pass
                     shutil.move(temp_detailed_file, final_detailed_file)
-                    logger.info(f"Detailed data saved to '{final_detailed_file}'")
+                    print(f"Detailed data saved to '{final_detailed_file}'")
                 except Exception as detailed_err:
-                    logger.error(f"Error saving detailed data: {detailed_err}")
+                    print(f"Error saving detailed data: {detailed_err}")
                     # Try alternative location
                     try:
                         detailed_df.to_csv('khda_training_providers_detailed.csv', index=False, lineterminator='\n')
-                        logger.info("Detailed data saved to current directory")
+                        print("Detailed data saved to current directory")
                     except:
-                        logger.error("Could not save detailed data")
+                        print("Could not save detailed data")
 
-            logger.info(f"Basic data saved to 'results/khda_training_providers_basic.csv'")
+            print(f"Basic data saved to 'results/khda_training_providers_basic.csv'")
             if detailed_providers:
-                logger.info(f"Detailed data saved to 'results/khda_training_providers_detailed.csv'")
+                print(f"Detailed data saved to 'results/khda_training_providers_detailed.csv'")
             
             await browser.close()
             return detailed_providers
     except Exception as e:
-        logger.error(f"Error during scraping process: {str(e)}")
+        print(f"Error during scraping process: {str(e)}")
     finally:
         # Ensure browser is closed in case of error
         try:
             await browser.close()
         except Exception as e:
-            logger.error(f"Error closing browser: {str(e)}")
+            print(f"Error closing browser: {str(e)}")
         
         return detailed_providers
 
@@ -1935,39 +1922,23 @@ def setup():
         for package in required_packages:
             try:
                 __import__(package)
-                logger.info(f"{package} is already installed.")
+                print(f"{package} is already installed.")
             except ImportError:
-                logger.info(f"Installing {package}...")
+                print(f"Installing {package}...")
                 subprocess.check_call([sys.executable, "-m", "pip", "install", package])
         
         # Install Playwright browsers
-        logger.info("Installing Playwright browsers...")
+        print("Installing Playwright browsers...")
         subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
         
-        logger.info("Setup completed successfully.")
+        print("Setup completed successfully.")
     except Exception as e:
-        logger.error(f"Error during setup: {str(e)}")
+        print(f"Error during setup: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    logger.info("="*50)
-    logger.info("KHDA Training Provider Scraper Started")
-    logger.info(f"Started at: {datetime.now()}")
-    logger.info("="*50)
+    # Set up dependencies
+    setup()
     
-    try:
-        # Set up dependencies
-        setup()
-        
-        # Run the scraper
-        providers = asyncio.run(scrape_training_providers())
-    except KeyboardInterrupt:
-        logger.info("Scraper interrupted by user")
-    except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-    finally:
-        logger.info("="*50)
-        logger.info("KHDA Training Provider Scraper Finished")
-        logger.info(f"Finished at: {datetime.now()}")
-        logger.info("="*50)
+    # Run the scraper
+    providers = asyncio.run(scrape_training_providers())
