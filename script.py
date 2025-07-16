@@ -15,12 +15,18 @@ import sys
 import logging
 from datetime import datetime
 
+# Create logs directory if it doesn't exist
+os.makedirs('logs', exist_ok=True)
+
+# Generate log filename with current date-time
+log_filename = f"logs/scraper_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs.txt', mode='a'),
+        logging.FileHandler(log_filename, mode='w'),
         logging.StreamHandler(sys.stdout)
     ]
 )
@@ -1953,6 +1959,7 @@ if __name__ == "__main__":
     logger.info("="*50)
     logger.info("KHDA Training Provider Scraper Started")
     logger.info(f"Started at: {datetime.now()}")
+    logger.info(f"Log file: {log_filename}")
     logger.info("="*50)
     
     try:
@@ -1970,4 +1977,5 @@ if __name__ == "__main__":
         logger.info("="*50)
         logger.info("KHDA Training Provider Scraper Finished")
         logger.info(f"Finished at: {datetime.now()}")
+        logger.info(f"Log file: {log_filename}")
         logger.info("="*50)
